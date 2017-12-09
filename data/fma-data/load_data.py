@@ -32,7 +32,7 @@ class track:
         self.bitrate = bitrate
         self.split = split          # training or testing
         self.subset = subset        # small or ...
-        self.features = None
+        self.features = None        # [f1, f2, ...]
     def __str__(self):
         return "{}: {}  ||  {}".format(self.id, self.title, self.genres)
 
@@ -59,29 +59,43 @@ def init_loader(path):
 # each track has its genre list altered, storing only the shifted ids of each genre
 # they are shifted so that the genre ids will be consecutive; this makes the final softmax
 # layer of the neural net smaller (versus having a spot for genres 23-25, which don't exist)
-def get_small_training():
+def get_tracks(subset):
     result = []
     tracks = load_tracks()
     features = load_features()
     for track_id in features:
         track = tracks[track_id]
         feature = features[track_id]
-        if track.subset == 'small' and track.split == 'training':
+        if track.subset == subset:
             track.features = feature
             for i in range(0, len(track.genres)):
                 track.genres[i] = genre_to_index(track.genres[i])
             result.append(track)
-
     return result
+
+def get_n_genres(n_genres):
+    global GENRES
+    if GENRES == None:
+        GENRES = load_genres()[1]
+    
+    genres = list(GENRES.values())
+    genres = sorted(genres, reverse=True, key=(lambda x: x.count))
+
+    global genre_to_index
+
+    for i in range(n_genres):
+        genres[i] = genre_to_index(genres[i].id)
+
+    return genres[:n_genres]
 
 def init_genre_index():
     global GENRES
     if GENRES == None:
-        GENRES = load_genres()
+        GENRES = load_genres()[1]
 
     # [1, 2, 4, 7] ==> [0, 1, 2, 3]
     # {1: 0, 2: 1,}    {0: 1, 1: 2,}    
-    map_to_genre = sorted(list(GENRES[1].keys()))       # this can just be a list
+    map_to_genre = sorted(list(GENRES.keys()))       # this can just be a list
     map_to_index = {}
 
     for i in range (0, len(map_to_genre)):
@@ -123,7 +137,6 @@ def load_genres():
     top_genres = {}
     mapping = {}                                        # id -> genre (class)
     global PATH
-    #print(PATH)
     with open('{}/fma_metadata/genres.csv'.format(PATH)) as f:
         top_level_count = 16
         f.readline()
@@ -131,13 +144,10 @@ def load_genres():
             genre_data = line.strip().split(',')
             new_genre = genre(int(genre_data[0]), int(genre_data[1]), int(genre_data[2]), genre_data[3], int(genre_data[4]))
             if genre_data[0] == genre_data[4]:
-                #print(genre_data)
                 top_genres[genre_data[0]] = new_genre
-                #print(new_genre)
             mapping[int(genre_data[0])] = new_genre
         
         for k,node in mapping.items():
-            #print(node, ". Parent is ", node.parent)
             if node.parent == 0:
                 node.parent == None
             else:
@@ -180,8 +190,8 @@ def load_features():
                         stat_i += 1
                         mapping[id][feature_i].add_stat(stat)
                     mapping[id][feature_i].data[stat_i].append(float(data))
-            if i > 5:
-                break;
-            i += 1
+            #if i > 500:
+                #break;
+            #i += 1
     return mapping
 
