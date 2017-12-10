@@ -2,10 +2,13 @@ import numpy as np
 import fma_pca
 import matplotlib.pyplot as plt
 import datetime
+import logger
 
-num_classes = 3
+num_classes = 2
 
-fma_pca.init_debug(num_classes, subset='medium')
+subset='small'
+
+fma_pca.init(num_classes, pca_on=True, subset=subset)
 
 #num_classes = fma_pca.num_genres()
 
@@ -28,14 +31,16 @@ import tensorflow as tf
 
 ###############################################################################
 
-training_epochs = 5000
-batch_size = -1
-n_dim = feature_size
-n_classes = num_classes
+test_id = 'batch_size/1-10-c2'      # for the log file name
+training_epochs = 100000
+batch_size = 10
+minutes = 10
 n_hidden_units_one = 280
 n_hidden_units_two = 300
+n_dim = feature_size
+n_classes = num_classes
 sd = 1 / np.sqrt(n_dim)
-learning_rate = 0.01
+learning_rate = 0.08
 
 ###############################################################################
 
@@ -56,7 +61,6 @@ W = tf.Variable(tf.random_normal([n_hidden_units_two,n_classes], mean = 0, stdde
 b = tf.Variable(tf.random_normal([n_classes], mean = 0, stddev=sd), name='b')
 y = tf.matmul(h_2, W) + b
 final_output = tf.nn.sigmoid(y, name='final_output')
-#tf.nn.sigmoid(tf.matmul(h_2,W) + b)
 
 init = tf.global_variables_initializer()
 
@@ -86,9 +90,9 @@ val_hist = np.empty(shape=[0],dtype=float)
 with tf.Session() as sess:
     sess.run(init)
     d1 = datetime.datetime.now()
-    epoch = 0
-    #for epoch in range(training_epochs):
-    while (True):
+    epochs = 0
+    for epoch in range(training_epochs):
+    #while (True):
         print("Epoch: {}".format(epoch), sep=' ', end='\r', flush=True)
         if batch_size <= 0:
             _,cost = sess.run([optimizer, cost_function], feed_dict={X:train_x, y_:train_y})
@@ -106,47 +110,69 @@ with tf.Session() as sess:
                 cost_hist = np.append(cost_hist, cost)
                 valid = sess.run(accuracy, feed_dict={X:val_x, y_:val_y})
                 val_hist = np.append(val_hist, valid)
-        epoch += 1
-        if (datetime.datetime.now() - d1) > datetime.timedelta(0, 60*60*4.5, 0):
+        epochs += 1
+        if (datetime.datetime.now() - d1) > datetime.timedelta(0, 60*minutes, 0):
             break
         if valid >= .9:
             break
     d2=datetime.datetime.now()
-    print("\n-------------------------------------------------\n")
-    print("Epoch: ", epoch)
+    print("Epoch: ", epochs)
+    print("\n-------------------------------------------------")
     print("elapsed time: ", d2-d1)
-    saver = tf.train.Saver()
-    saver.save(sess, "./models/akshay")
+    #saver = tf.train.Saver()
+    #saver.save(sess, "./models/akshay")
     
+    test_accuracy = sess.run(accuracy, feed_dict={X:test_x, y_:test_y})
     print("testing accuracy:")
-    print(sess.run(accuracy, feed_dict={X:test_x, y_:test_y}))
+    print(test_accuracy)
     
-    print("training accuracy:")
     train_x = fma_pca.x_train()
     train_y = fma_pca.y_train()
-    print(sess.run(accuracy, feed_dict={X:train_x, y_:train_y}))
+    train_accuracy = sess.run(accuracy, feed_dict={X:train_x, y_:train_y})
+    print("training accuracy:")
+    print(train_accuracy)
+
+    logger.write_log('{}'.format(test_id), n_classes, epochs, batch_size, d2-d1, learning_rate, subset, train_accuracy, test_accuracy, cost_hist, val_hist)
     
     # run on training data to test over-fitting hypothesis
-    """
+    
     y_pred = sess.run(tf.round(final_output), feed_dict={X: test_x})
     y_true = sess.run(y_, feed_dict={y_: test_y})
     
     
     print(y_pred[5])
     print(y_true[5])
+    for i in range(len(y_pred[5])):
+        if y_pred[5][i] != y_true[5][i]:
+            print("Index {}, {} != {}".format(i, y_pred[5][i], y_true[5][i]))
     print('---------')
+
     print(y_pred[50])
     print(y_true[50])
+    for i in range(len(y_pred[50])):
+        if y_pred[50][i] != y_true[50][i]:
+            print("Index {}, {} != {}".format(i, y_pred[50][i], y_true[50][i]))
     print('---------')
+    
     print(y_pred[2])
     print(y_true[2])
+    for i in range(len(y_pred[2])):
+        if y_pred[2][i] != y_true[2][i]:
+            print("Index {}, {} != {}".format(i, y_pred[2][i], y_true[2][i]))
     print('---------')
+
     print(y_pred[0])
     print(y_true[0])
+    for i in range(len(y_pred[0])):
+        if y_pred[0][i] != y_true[0][i]:
+            print("Index {}, {} != {}".format(i, y_pred[0][i], y_true[0][i]))
+    
     print('---------')
     print(y_pred[57])
     print(y_true[57])
-    """
+    for i in range(len(y_pred[57])):
+        if y_pred[57][i] != y_true[57][i]:
+            print("Index {}, {} != {}".format(i, y_pred[57][i], y_true[57][i]))
 
 ###############################################################################
 
