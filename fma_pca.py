@@ -21,7 +21,7 @@ Y_BATCH = None
 FEATURE_SIZE = None
 
 
-def init_debug(n_genres=163, subset='small', pca_on=True, n_components=3):
+def init(n_genres=163, subset='small', pca_on=True, n_components=3):
     global TRACKS
     global X_DATA
     global Y_DATA
@@ -83,40 +83,36 @@ def init_debug(n_genres=163, subset='small', pca_on=True, n_components=3):
     x_v = []
     y_v = []
     
-    # the difference in # of tracks within genre(s), and # of tracks unlabeled
-    # this keeps the number of classified and unclassified tracks roughly equal
-    diff_data = 0
-    diff_test = 0
-    diff_val = 0
+    # count of how many tracks are added not within specified genres
+    others = 0
+    others_t = 0
+    others_v = 0
 
     for track in TRACKS:
         if track.split == 'training':
             if set(track.genres).intersection(set(genres)) != set():
                 x = add_features(x, track.features)
                 y = add_genres(y, track.genres)
-                diff_data += 1
-            elif diff_data > -40:
+            elif len(x)/n_genres > others:
                 x = add_features(x, track.features)
                 y = add_genres(y, [])
-                diff_data -= 1
+                others += 1
         elif track.split == 'test':
             if set(track.genres).intersection(set(genres)) != set():
                 x_t = add_features(x_t, track.features)
-                y_t = add_genres(y_t, track.features)
-                diff_test += 1
-            elif diff_test > -40:
+                y_t = add_genres(y_t, track.genres)
+            elif len(x_t)/n_genres > others_t:
                 x_t = add_features(x_t, track.features)
                 y_t = add_genres(y_t, [])
-                diff_data -= 1
+                others_t += 1
         else:                                           # validation
             if set(track.genres).intersection(set(genres)) != set():
                 x_v = add_features(x_v, track.features)
                 y_v = add_genres(y_v, track.genres)
-                diff_val += 1
-            elif diff_val > -40:
+            elif len(x_t)/n_genres > others_v:
                 x_v = add_features(x_v, track.features)
                 y_v = add_genres(y_v, [])
-                diff_val -= 1
+                others_v += 1
     
     Y_DATA = y
     X_DATA = x
@@ -126,78 +122,6 @@ def init_debug(n_genres=163, subset='small', pca_on=True, n_components=3):
 
     Y_VAL = y_v
     X_VAL = x_v
-
-def init():
-    global TRACKS
-    global X_DATA
-    global Y_DATA
-    global X_TEST
-    global Y_TEST
-    global next_pca_batch
-
-    TRACKS = load_data.get_small()
-    pca = decomposition.PCA(n_components=1)
-    
-    x = []
-    y = []
-    
-    x_t = []
-    y_t = []
-    
-    n_genres = num_genres()
-    
-    # applies pca to a matrix. Then flattens it
-    def pca_flatten (matrix):
-        nonlocal pca
-        return np.hstack(pca.fit_transform(matrix))
-
-    # these are private helper functions
-    def add_features(x, features):
-        if (len(x) == 0):
-                x = np.array(pca_flatten(to_matrix(features)))
-        else:
-            x = np.vstack([x, pca_flatten(to_matrix(features))])
-        return x
-        
-    def add_genres(y, genres):
-        nonlocal n_genres
-        y_curr = [0. for x in range(n_genres)]
-        for genre in genres:
-            y_curr[genre] = 1.
-        if (len(y) == 0):
-            y = np.array([y_curr])
-        else:
-            y = np.concatenate((y, np.array([y_curr])))
-        return y
-
-    # fill the global variables X_..., Y_...
-    for track in TRACKS:
-        if track.split == 'training':
-            x = add_features(x, list(track.features))
-            y = add_genres(y, track.genres)
-        else:
-            x_t = add_features(x_t, list(track.features))
-            y_t = add_genres(y_t, track.genres)
-    
-    Y_DATA = y
-    X_DATA = x
-
-    Y_TEST = y_t
-    X_TEST = x_t
-    
-    # return the next batch of size (size)
-    # designed to conform to the mnist standard -- it just works, no generator involved
-    # enclosed to protect essential nonlocal helper variables
-    i = 0
-    prev = 0
-    def get_pca_batch(size):
-        nonlocal i
-        nonlocal prev
-        prev = i
-        i += size
-        return (X_DATA[prev:i], Y_DATA[prev:i])
-    # adds our enclosed function to the global namespace
-    #next_pca_batch = get_pca_batch
 
 # given a list of features, returns the length of the biggest feature
 def max_length(features):
@@ -304,122 +228,102 @@ def y_val():
 
 load_data.init_loader('./data/fma-data')
 
-
-if __name__ == 'main':
-    
+def show_pca_histogram():
     import matplotlib.pyplot as plt
-
-    #init_debug(n_components=20)
-
-        
-
-
-    import ply_export
+    global TRACKS
+    pca = decomposition.PCA()
     
-    n_genres = 3
-    
-    pca = decomposition.PCA(n_components=3)
-    
-    # these are private helper functions
-    
-    def do_pca(matrix):
-        nonlocal pca
-        return pca.fit_transform(preprocessing.normalize(np.transpose(matrix)))
-    
-    def add_features(x, features):
-        nonlocal pca_on
-        if (pca_on):
-            if (len(x) == 0):
-                x = np.hstack(do_pca(to_matrix(features)))
-            else:
-                x = np.vstack([x, np.hstack(do_pca(to_matrix(features)))])
-        else:
-            if (len(x) == 0):
-                x = np.hstack(to_matrix(features))
-            else:
-                x = np.vstack([x, np.hstack(to_matrix(features))])
-        return x
-    
-    genres = load_data.get_n_genres(n_genres-1)
-    
-    def add_genres(y, y_genres):
-        nonlocal n_genres
-        nonlocal genres
+    total = []
 
-        labels = [0 for x in range(n_genres)]
-        
-        if len(y_genres) == 0:
-            labels[-1] = 1.
-
-        for genre in y_genres:
-            if genre in genres:         # the genre is the top n genres
-                labels[genres.index(genre)] = 1.
-        if len(y) == 0:
-            y = labels
-        else:
-            y = np.vstack([y, labels])
-        return y
-    
-
-    TRACKS = load_data.get_tracks('small')
-
-    x = []
-    y = []
-    
-    # the difference in # of tracks within genre(s), and # of tracks unlabeled
-    # this keeps the number of classified and unclassified tracks roughly equal
-    diff_data = 0
-    diff_test = 0
-    diff_val = 0
-
-    num_samples = 100
-
-    genres = [ [] for x in range(n_genres)]
-
-    
+    i = 0
 
     for track in TRACKS:
-        #...
-        for genre in track.genres:
-            
-        if track.split == 'training':
-            if set(track.genres).intersection(set(genres)) != set():
-                x = add_features(x, track.features)
-                y = add_genres(y, track.genres)
-                diff_data += 1
-            elif diff_data > -40:
-                x = add_features(x, track.features)
-                y = add_genres(y, [])
-                diff_data -= 1
-        elif track.split == 'test':
-            if set(track.genres).intersection(set(genres)) != set():
-                x_t = add_features(x_t, track.features)
-                y_t = add_genres(y_t, track.features)
-                diff_test += 1
-            elif diff_test > -40:
-                x_t = add_features(x_t, track.features)
-                y_t = add_genres(y_t, [])
-                diff_data -= 1
-        else:                                           # validation
-            if set(track.genres).intersection(set(genres)) != set():
-                x_v = add_features(x_v, track.features)
-                y_v = add_genres(y_v, track.genres)
-                diff_val += 1
-            elif diff_val > -40:
-                x_v = add_features(x_v, track.features)
-                y_v = add_genres(y_v, [])
-                diff_val -= 1
+        matrix = to_matrix(track.features)
+        pca.fit(preprocessing.normalize(np.transpose(matrix)))
+        ratio = pca.explained_variance_ratio_
+        temp = 0
+        for i in range(len(ratio)):
+            ratio[i] += temp
+            temp = ratio[i]
+        if len(total) == 0:
+            total = ratio
+        else:
+            total = total + ratio
+        i += 1
+    result = total/len(TRACKS)
+    print(result)
+
+    plt.plot(result)
+    plt.show()
+
+def get_random_average(samples, vertices):
+    import random
+
+    avg = []
+    for sample in range(samples):
+        r = random.randint(0,len(vertices)-1)
+        
+        if len(avg) == 0:
+            avg = [vertices[r]]
+        else:
+            avg = np.vstack([avg, [vertices[r]]])
     
-    Y_DATA = y
-    X_DATA = x
+    return np.mean(avg, axis=0)
 
-    Y_TEST = y_t
-    X_TEST = x_t
+if __name__ == '__main__':
+    
+    if len(sys.argv) > 1 and sys.argv[1] == 'debug':
+        pass
+    else:
+        TRACKS = load_data.get_tracks('small')
 
-    Y_VAL = y_v
-    X_VAL = x_v
+        import ply_export
+        
+        n_genres = 3
+        
+        genres = load_data.get_n_genres(n_genres)
 
+        pca = decomposition.PCA(n_genres)
+        
+        # these are private helper functions
+        
+        def do_pca(matrix, pca):
+            return pca.fit_transform(preprocessing.normalize(np.transpose(matrix)))
 
+        #vertices = do_pca(to_matrix(TRACKS[0].features))
+
+        #ply_export.write_ply(vertices, 'test1')
+        
+        vertices = []
+        genre_vertices = [[] for x in range(n_genres)]
+        for track in TRACKS:
+            pca_matrix = [do_pca(to_matrix(track.features), pca)]
+            for genre in track.genres:
+                if genre in genres:
+                    index = genres.index(genre)
+                    if len(genre_vertices[index]) == 0:
+                        genre_vertices[index] = pca_matrix
+                    else:
+                        genre_vertices[index] = np.vstack([genre_vertices[index], pca_matrix])
+            if len(vertices) == 0:
+                vertices = pca_matrix
+            else:
+                vertices = np.vstack([vertices, pca_matrix])
+        
+        total_average = np.mean(vertices, axis=0)
+        
+        #ply_export.write_ply(total_average, 'total')
+
+        genre_avg = [0 for x in range(len(genre_vertices))]
+
+        for i in range(len(genre_vertices)):
+            genre_avg[i] = np.mean(genre_vertices[i], axis=0)
+        
+        for i in range(len(genre_avg)):
+            ply_export.write_ply(genre_avg[i], 'genre{}'.format(genres[i]))
+
+        #for i in range(10):
+            #ply_export.write_ply(get_random_average(100, vertices), 'test{}'.format(i))
 
 
 
