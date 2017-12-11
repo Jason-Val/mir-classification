@@ -15,13 +15,15 @@ Y_TEST = None
 X_VAL = None
 Y_VAL = None
 
-X_BATCH = None
-Y_BATCH = None
+X_BATCH = []
+Y_BATCH = []
 
 FEATURE_SIZE = None
 
+get_batch = None
 
-def init(n_genres=163, subset='small', pca_on=True, n_components=3):
+
+def init(n_genres=163, subset='small', pca_on=True, n_components=3, reuse=False):
     global TRACKS
     global X_DATA
     global Y_DATA
@@ -42,12 +44,12 @@ def init(n_genres=163, subset='small', pca_on=True, n_components=3):
         nonlocal pca_on
         if (pca_on):
             if (len(x) == 0):
-                x = np.hstack(do_pca(to_matrix(features)))
+                x = np.array([np.hstack(do_pca(to_matrix(features)))])
             else:
                 x = np.vstack([x, np.hstack(do_pca(to_matrix(features)))])
         else:
             if (len(x) == 0):
-                x = np.hstack(to_matrix(features))
+                x = np.array([np.hstack(to_matrix(features))])
             else:
                 x = np.vstack([x, np.hstack(to_matrix(features))])
         return x
@@ -72,7 +74,8 @@ def init(n_genres=163, subset='small', pca_on=True, n_components=3):
             y = np.vstack([y, labels])
         return y
     
-    TRACKS = load_data.get_tracks(subset)
+    if not reuse or TRACKS == None:
+        TRACKS = load_data.get_tracks(subset)
 
     x = []
     y = []
@@ -173,40 +176,29 @@ def num_genres():
     l = list(genres.keys())
     return len(l)
 
+# initialize batch creation; run this every epoch
 def init_batch():
     global X_BATCH
     global Y_BATCH
-    X_BATCH = np.copy(X_DATA)
-    Y_BATCH = np.copy(Y_DATA)
-
-def get_batch(size):
-    global X_BATCH
-    global Y_BATCH
-
-    if len(X_BATCH) == 0:
-        return ([], [])
-
-    batch_x = []
-    batch_y = []
+    global get_batch
     
-    for i in range(size):
+    if len(X_BATCH) == 0:     
+        X_BATCH = np.copy(X_DATA)
+        Y_BATCH = np.copy(Y_DATA)
+    rng_state = np.random.get_state()
+    np.random.shuffle(X_BATCH)
+    np.random.set_state(rng_state)
+    np.random.shuffle(Y_BATCH)
+    
+    # define get_batch. enclosed to protect helper variable bookmark
+    bookmark = 0
+    def batch(size):
+        nonlocal bookmark
+        result = (X_BATCH[bookmark:bookmark+size], Y_BATCH[bookmark:bookmark+size])
+        bookmark += size
+        return result
 
-        if len(X_BATCH) == 0:
-            break
-        
-        r=random.randint(0, len(X_BATCH)-1)
-        
-        if len(batch_x) == 0:
-            batch_x = X_BATCH[r]
-            batch_y = Y_BATCH[r]
-        else:
-            batch_x = np.vstack([batch_x, X_BATCH[r]])
-            batch_y = np.vstack([batch_y, Y_BATCH[r]])
-        
-        X_BATCH = np.delete(X_BATCH, r, 0)
-        Y_BATCH = np.delete(Y_BATCH, r, 0)
-
-    return (X_BATCH, Y_BATCH)
+    get_batch = batch
 
 def x_train():
     return X_DATA
@@ -225,6 +217,9 @@ def x_val():
 
 def y_val():
     return Y_VAL
+
+def n_dim():
+    return len(X_DATA[0])
 
 load_data.init_loader('./data/fma-data')
 
