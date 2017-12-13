@@ -6,7 +6,7 @@ from sklearn import decomposition
 from sklearn import preprocessing
 import random
 
-TRACKS = None
+TRACKS = []
 
 X_DATA = None
 Y_DATA = None
@@ -22,8 +22,293 @@ FEATURE_SIZE = None
 
 get_batch = None
 
-
 def init(n_genres=163, subset='small', pca_on=True, n_components=3, reuse=False):
+    global TRACKS
+    global X_DATA
+    global Y_DATA
+    global X_TEST
+    global Y_TEST
+    global X_VAL
+    global Y_VAL
+    
+    print("Loading tracks... ")
+    pca = decomposition.PCA(n_components=n_components)
+    
+    # these are private helper functions
+    
+    def do_pca(matrix):
+        nonlocal pca
+        return pca.fit_transform(preprocessing.normalize(np.transpose(matrix)))
+    
+    def add_features(x, features):
+        nonlocal pca_on
+        if (pca_on):
+            if (len(x) == 0):
+                x = np.array([np.hstack(do_pca(to_matrix(features)))])
+            else:
+                x = np.vstack([x, np.hstack(do_pca(to_matrix(features)))])
+        else:
+            if (len(x) == 0):
+                x = np.array([np.hstack(to_matrix(features))])
+            else:
+                x = np.vstack([x, np.hstack(to_matrix(features))])
+        return x
+    
+    genres = load_data.get_n_genres(n_genres)
+    
+    def add_genres(y, y_genres):
+        nonlocal n_genres
+        nonlocal genres
+
+        labels = [0 for x in range(n_genres)]
+
+        for genre in y_genres:
+            if genre in genres:
+                labels[genres.index(genre)] = 1.
+        if len(y) == 0:
+            y = labels
+        else:
+            y = np.vstack([y, labels])
+        return y
+    
+    if not reuse or len(TRACKS) == 0:
+        TRACKS = load_data.get_tracks(subset)
+
+    x = []
+    y = []
+    
+    x_t = []
+    y_t = []
+
+    x_v = []
+    y_v = []
+    
+    
+    for track in TRACKS:
+        if track.split == 'training':
+            #print(track.genres)
+            #print(diff_d)
+            if set(track.genres).intersection(set(genres)) != set():
+                x = add_features(x, track.features)
+                y = add_genres(y, track.genres)
+        elif track.split == 'test':
+            if set(track.genres).intersection(set(genres)) != set():
+                x_t = add_features(x_t, track.features)
+                y_t = add_genres(y_t, track.genres)
+        else:                                          # validation
+            if set(track.genres).intersection(set(genres)) != set():
+                x_v = add_features(x_v, track.features)
+                y_v = add_genres(y_v, track.genres)
+    
+    Y_DATA = y
+    X_DATA = x
+
+    Y_TEST = y_t
+    X_TEST = x_t
+
+    Y_VAL = y_v
+    X_VAL = x_v
+
+def init_mel(n_genres=163, subset='small', reuse=True, pca_on=False):
+    
+    global TRACKS
+    global X_DATA
+    global Y_DATA
+    global X_TEST
+    global Y_TEST
+    global X_VAL
+    global Y_VAL
+    
+    genres = load_data.get_n_genres(n_genres-1)
+
+    pca = decomposition.PCA(n_components=57)
+    
+    if not reuse or len(TRACKS) == 0 or len(TRACKS[0].mel) == 0:
+        print("Loading tracks...")
+        TRACKS = load_data.get_tracks(subset, pca=False, mel=True)
+        print("Tracks loaded")
+    
+    genres = load_data.get_n_genres(n_genres-1)
+
+    def do_pca(matrix):
+        nonlocal pca
+        return pca.fit_transform(preprocessing.normalize(matrix))
+
+    def add_features(x, features):
+        nonlocal pca_on
+        if (len(x) == 0):
+            if pca_on:
+                features = np.reshape(features, [128,128])
+                features = np.reshape(do_pca(features), [128,57,1])
+            x = np.array([features])
+        else:
+            if pca_on:
+                features = np.reshape(features, [128,128])
+                features = np.reshape(do_pca(features), [128,57,1])
+            x = np.vstack([x, [features]])
+        return x
+    
+    def add_genres(y, y_genres):
+        nonlocal n_genres
+        nonlocal genres
+
+        labels = [0 for x in range(n_genres)]
+
+        for genre in y_genres:
+            if genre in genres:         # the genre is the top n genres
+                labels[genres.index(genre)] = 1.
+        if len(y) == 0:
+            y = labels
+        else:
+            y = np.vstack([y, labels])
+        return y
+
+    x = []
+    y = []
+    
+    x_t = []
+    y_t = []
+
+    x_v = []
+    y_v = []
+
+    progress = 1
+
+    for track in TRACKS:
+        print("Processing track {} of {}".format(progress, len(TRACKS)), sep=' ', end='\r', flush=True)
+        progress += 1
+        if len(track.mel) != 0:
+            if track.split == 'training':
+                if set(track.genres).intersection(set(genres)) != set():
+                    x = add_features(x, track.mel)
+                    y = add_genres(y, track.genres)
+            elif track.split == 'test':
+                if set(track.genres).intersection(set(genres)) != set():
+                    x_t = add_features(x_t, track.mel)
+                    y_t = add_genres(y_t, track.genres)
+            elif track.split == 'validation':
+                if set(track.genres).intersection(set(genres)) != set():
+                    x_v = add_features(x_v, track.mel)
+                    y_v = add_genres(y_v, track.genres)
+
+    print('')
+    print('X shape: {}'.format(x.shape))
+    print('Y shape: {}'.format(y.shape))
+
+    Y_DATA = y
+    X_DATA = x
+
+    Y_TEST = y_t
+    X_TEST = x_t
+
+    Y_VAL = y_v
+    X_VAL = x_v
+
+def init_mel_with_others(n_genres=163, subset='small', reuse=True):
+    
+    global TRACKS
+    global X_DATA
+    global Y_DATA
+    global X_TEST
+    global Y_TEST
+    global X_VAL
+    global Y_VAL
+    
+    genres = load_data.get_n_genres(n_genres-1)
+    
+    if not reuse or len(TRACKS) == 0 or len(TRACKS[0].mel) == 0:
+        print("Loading tracks...")
+        TRACKS = load_data.get_tracks(subset, pca=False, mel=True)
+        print("Tracks loaded")
+    
+    genres = load_data.get_n_genres(n_genres-1)
+    
+    def add_features(x, features):
+        if (len(x) == 0):
+            x = np.array([features])
+        else:
+            x = np.vstack([x, [features]])
+        return x
+    
+    def add_genres(y, y_genres):
+        nonlocal n_genres
+        nonlocal genres
+
+        labels = [0 for x in range(n_genres)]
+        
+        if len(y_genres) == 0:
+            labels[-1] = 1.
+
+        for genre in y_genres:
+            if genre in genres:         # the genre is the top n genres
+                labels[genres.index(genre)] = 1.
+        if len(y) == 0:
+            y = labels
+        else:
+            y = np.vstack([y, labels])
+        return y
+
+    x = []
+    y = []
+    
+    x_t = []
+    y_t = []
+
+    x_v = []
+    y_v = []
+    
+    # count of how many tracks are added not within specified genres
+    diff_d = 0
+    diff_t = 0
+    diff_v = 0
+
+    progress = 1
+
+    for track in TRACKS:
+        print("Processing track {} of {}".format(progress, len(TRACKS)), sep=' ', end='\r', flush=True)
+        progress += 1
+        if len(track.mel) != 0:
+            if track.split == 'training':
+                if set(track.genres).intersection(set(genres)) != set():
+                    x = add_features(x, track.mel)
+                    y = add_genres(y, track.genres)
+                    diff_d += 1
+                elif diff_d/(n_genres-1) > 10:
+                    x = add_features(x, track.mel)
+                    y = add_genres(y, [])
+                    diff_d -= 1
+            elif track.split == 'test':
+                if set(track.genres).intersection(set(genres)) != set():
+                    x_t = add_features(x_t, track.mel)
+                    y_t = add_genres(y_t, track.genres)
+                    diff_t += 1
+                elif diff_t/(n_genres-1) > 10:
+                    x_t = add_features(x_t, track.mel)
+                    y_t = add_genres(y_t, [])
+                    diff_t -= 1
+            elif track.split == 'validation':
+                if set(track.genres).intersection(set(genres)) != set():
+                    x_v = add_features(x_v, track.mel)
+                    y_v = add_genres(y_v, track.genres)
+                    diff_v += 1
+                elif diff_v/(n_genres-1) > 10:
+                    x_v = add_features(x_v, track.mel)
+                    y_v = add_genres(y_v, [])
+                    diff_v -= 1
+    print('')
+    print('X shape: {}'.format(x.shape))
+    print('Y shape: {}'.format(y.shape))
+
+    Y_DATA = y
+    X_DATA = x
+
+    Y_TEST = y_t
+    X_TEST = x_t
+
+    Y_VAL = y_v
+    X_VAL = x_v
+
+def init_with_others(n_genres=163, subset='small', pca_on=True, n_components=3, reuse=False):
     global TRACKS
     global X_DATA
     global Y_DATA
@@ -74,7 +359,8 @@ def init(n_genres=163, subset='small', pca_on=True, n_components=3, reuse=False)
             y = np.vstack([y, labels])
         return y
     
-    if not reuse or TRACKS == None:
+    if not reuse or len(TRACKS) == 0:
+        print('Loading tracks...')
         TRACKS = load_data.get_tracks(subset)
 
     x = []
@@ -87,35 +373,40 @@ def init(n_genres=163, subset='small', pca_on=True, n_components=3, reuse=False)
     y_v = []
     
     # count of how many tracks are added not within specified genres
-    others = 0
-    others_t = 0
-    others_v = 0
-
+    diff_d = 0
+    diff_t = 0
+    diff_v = 0
+    
     for track in TRACKS:
         if track.split == 'training':
+            #print(track.genres)
+            #print(diff_d)
             if set(track.genres).intersection(set(genres)) != set():
                 x = add_features(x, track.features)
                 y = add_genres(y, track.genres)
-            elif len(x)/n_genres > others:
+                diff_d += 1
+            elif diff_d/(n_genres-1) > 10:
                 x = add_features(x, track.features)
                 y = add_genres(y, [])
-                others += 1
+                diff_d -= 1
         elif track.split == 'test':
             if set(track.genres).intersection(set(genres)) != set():
                 x_t = add_features(x_t, track.features)
                 y_t = add_genres(y_t, track.genres)
-            elif len(x_t)/n_genres > others_t:
+                diff_t += 1
+            elif diff_t/(n_genres-1) > 10:
                 x_t = add_features(x_t, track.features)
                 y_t = add_genres(y_t, [])
-                others_t += 1
+                diff_t -= 1
         else:                                           # validation
             if set(track.genres).intersection(set(genres)) != set():
                 x_v = add_features(x_v, track.features)
                 y_v = add_genres(y_v, track.genres)
-            elif len(x_t)/n_genres > others_v:
+                diff_v += 1
+            elif diff_v/(n_genres-1) > 10:
                 x_v = add_features(x_v, track.features)
                 y_v = add_genres(y_v, [])
-                others_v += 1
+                diff_v -= 1
     
     Y_DATA = y
     X_DATA = x
