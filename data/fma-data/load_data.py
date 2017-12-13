@@ -32,7 +32,8 @@ class track:
         self.bitrate = bitrate
         self.split = split          # training or testing
         self.subset = subset        # small or ...
-        self.features = None        # [f1, f2, ...]
+        self.features = []        # [f1, f2, ...]
+        self.mel = []
     def __str__(self):
         return "{}: {}  ||  {}".format(self.id, self.title, self.genres)
 
@@ -59,16 +60,26 @@ def init_loader(path):
 # each track has its genre list altered, storing only the shifted ids of each genre
 # they are shifted so that the genre ids will be consecutive; this makes the final softmax
 # layer of the neural net smaller (versus having a spot for genres 23-25, which don't exist)
-def get_tracks(subset):
+def get_tracks(subset, mel=False, pca=True):
     result = []
     tracks = load_tracks()
-    features = load_features()
-    for track_id in features:
+    features = None
+    mel_map = None
+    if pca:
+        features = load_features()
+    if mel:
+        mel_map = load_mel()
+    for track_id in tracks.keys():
         track = tracks[track_id]
-        feature = features[track_id]
         if track.subset == subset:
-            track.features = feature
-            for i in range(0, len(track.genres)):
+            if pca:
+                track.features = features[track_id]
+            if mel:
+                if track_id in mel_map:         # detect "holes" in our data, and skip these tracks
+                    track.mel = mel_map[track_id]
+                else:
+                    break
+            for i in range(len(track.genres)):
                 track.genres[i] = genre_to_index(track.genres[i])
             result.append(track)
     return result
@@ -111,6 +122,7 @@ def init_genre_index():
 
 
 def load_tracks():
+    print("Reading tracks from file...")
     mapping = {}                                    # id (track) -> track (class)
     with open('{}/fma_metadata/tracks.csv'.format(PATH)) as f:
         line = f.readline().strip().split(',')
@@ -134,6 +146,7 @@ def load_tracks():
     return mapping
 
 def load_genres():
+    print("Loading genres...")
     top_genres = {}
     mapping = {}                                        # id -> genre (class)
     global PATH
@@ -159,6 +172,7 @@ def load_genres():
     return (top_genres, mapping)
 
 def load_features():
+    print("Loading fma features...")
     mapping = {}                # track id -> [features (class)]
     with open('{}/fma_metadata/features.csv'.format(PATH)) as f:
         features = f.readline().strip().split(',')
@@ -190,8 +204,35 @@ def load_features():
                         stat_i += 1
                         mapping[id][feature_i].add_stat(stat)
                     mapping[id][feature_i].data[stat_i].append(float(data))
-            #if i > 500:
+            #if i > 5000:
                 #break;
             #i += 1
+    return mapping
+
+# returns a mapping from track id to melspectrogram, where the melspectrogram is:
+# [128, 128, 1].
+# The third dimension is because tensorflow expects a color channel
+def load_mel():
+    print("Loading melspectrograms...")
+    mapping = {}                # track id
+    with open('{}/fma_metadata/melspectrogram.csv'.format(PATH)) as f:
+        lines = csv.reader(f)
+        i = 1
+        curr_track = 0
+        freq_i = 0
+        for line in lines:
+            print("\treading line {} of {}".format(i, 1034841), sep=' ', end='\r', flush=True)
+            if line[1] == '':
+                curr_track = int(line[0])
+                mapping[curr_track] = np.array([[ [1.] for sample in range(128)] for freq in range(128)])
+                freq_i = 0
+            else:
+                index = 0
+                for sample in line:
+                    mapping[curr_track][freq_i][index][0] = sample
+                    index += 1
+                freq_i += 1
+            i += 1
+        print('')
     return mapping
 
