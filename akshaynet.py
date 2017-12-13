@@ -3,43 +3,64 @@ import tensorflow as tf
 
 # An arbitrary neural net
 class Net:
-    def __init__(self, optimizer, output, cost_function, X, y_, model_name):
+    def __init__(self, optimizer, output, cost_function, X, y_, model_name, keep_prob):
         self.optimizer=optimizer
         self.output=output
         self.cost_function=cost_function
         self.X=X
         self.y_=y_
         self.model_name=model_name
+        self.keep_prob=keep_prob
         
 
 ###############################################################################
 # ------ BUILD THE NET ------ #
+
+def make_layer(l_in, shape_1, shape_2, sd):
+    W = tf.Variable(tf.random_normal([shape_1, shape_2], mean = 0, stddev=sd), collections=[tf.GraphKeys.GLOBAL_VARIABLES])
+    b = tf.Variable(tf.random_normal([shape_2], mean = 0, stddev=sd), collections=[tf.GraphKeys.GLOBAL_VARIABLES])
+    h = tf.nn.sigmoid(tf.matmul(l_in,W) + b)
+    return h
+
+def make_input(l_in, shape_1, shape_2, sd):
+    W = tf.Variable(tf.random_normal([shape_1, shape_2], mean = 0, stddev=sd), collections=[tf.GraphKeys.GLOBAL_VARIABLES])
+    b = tf.Variable(tf.random_normal([shape_2], mean = 0, stddev=sd), collections=[tf.GraphKeys.GLOBAL_VARIABLES])
+    h = tf.nn.tanh(tf.matmul(l_in,W) + b)
+    return h
+
+def make_output(l_in, shape_1, shape_2, sd):
+    W = tf.Variable(tf.random_normal([shape_1, shape_2], mean = 0, stddev=sd), collections=[tf.GraphKeys.GLOBAL_VARIABLES])
+    b = tf.Variable(tf.random_normal([shape_2], mean = 0, stddev=sd), collections=[tf.GraphKeys.GLOBAL_VARIABLES])
+    h = tf.matmul(l_in,W) + b
+    return h
+
 def build_net(n_dim, n_classes, learning_rate):
     # ------ NET STRUCTURE ------ #
 
     model_name = 'akshaynet'
     
-    n_hidden_units_one = 280
-    n_hidden_units_two = 300
+    n_hidden_units_one = 2048
+    n_hidden_units_two = 1024
+    n_hidden_units_three = 512
+    
+    keep_prob = tf.placeholder(tf.float32)
 
     sd = 1 / np.sqrt(n_dim)
     
     X = tf.placeholder(tf.float32,[None,n_dim], name='X')
     y_ = tf.placeholder(tf.float32,[None,n_classes], name='Y')
 
-    W_1 = tf.Variable(tf.random_normal([n_dim,n_hidden_units_one], mean = 0, stddev=sd), name='W_1', collections=[tf.GraphKeys.GLOBAL_VARIABLES])
-    b_1 = tf.Variable(tf.random_normal([n_hidden_units_one], mean = 0, stddev=sd), name='b_1', collections=[tf.GraphKeys.GLOBAL_VARIABLES])
-    h_1 = tf.nn.tanh(tf.matmul(X,W_1) + b_1, name="h_1")
+    l1 = make_input(X, n_dim, n_hidden_units_one, sd)
+    l2 = make_layer(l1, n_hidden_units_one, n_hidden_units_two, sd)
 
+    dropout1 = tf.nn.dropout(l2, keep_prob)
 
-    W_2 = tf.Variable(tf.random_normal([n_hidden_units_one,n_hidden_units_two], mean = 0, stddev=sd), name='W_2', collections=[tf.GraphKeys.GLOBAL_VARIABLES])
-    b_2 = tf.Variable(tf.random_normal([n_hidden_units_two], mean = 0, stddev=sd), name='b_2', collections=[tf.GraphKeys.GLOBAL_VARIABLES])
-    h_2 = tf.nn.sigmoid(tf.matmul(h_1,W_2) + b_2, name='h_2')
+    l3 = make_layer(dropout1, n_hidden_units_two, n_hidden_units_three, sd)
+    
+    dropout2 = tf.nn.dropout(l3, keep_prob)
 
+    y = make_output(dropout2, n_hidden_units_three, n_classes, sd)
 
-    W = tf.Variable(tf.random_normal([n_hidden_units_two,n_classes], mean = 0, stddev=sd), name='W', collections=[tf.GraphKeys.GLOBAL_VARIABLES])
-    b = tf.Variable(tf.random_normal([n_classes], mean = 0, stddev=sd), name='b', collections=[tf.GraphKeys.GLOBAL_VARIABLES])
-    y = tf.matmul(h_2, W) + b
     final_output = tf.nn.sigmoid(y, name='final_output')
 
     # ------ ACCURACY AND LOSS ------ #
@@ -56,8 +77,8 @@ def build_net(n_dim, n_classes, learning_rate):
     cost_function_manual = -tf.reduce_sum( (  (y_*tf.log(y + 1e-9)) + ((1-y_) * tf.log(1 - y + 1e-9)) ))
     """
     #cost_function = tf.reduce_mean(-tf.reduce_sum(Y * tf.log(y_), reduction_indices=[1]))
+    
+    optimizer = tf.train.AdamOptimizer(learning_rate).minimize(cost_function)
 
-    optimizer = tf.train.GradientDescentOptimizer(learning_rate).minimize(cost_function)
-
-    return Net(optimizer, final_output, cost_function, X, y_, model_name)
+    return Net(optimizer, final_output, cost_function, X, y_, model_name, keep_prob)
     #return (final_output, optimizer, cost_function, init)
