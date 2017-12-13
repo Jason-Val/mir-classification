@@ -561,25 +561,30 @@ if __name__ == '__main__':
     if len(sys.argv) > 1 and sys.argv[1] == 'debug':
         pass
     else:
+        
         TRACKS = load_data.get_tracks('small')
 
         import ply_export
         
-        n_genres = 3
+        n_genres = 6
         
         genres = load_data.get_n_genres(n_genres)
 
-        pca = decomposition.PCA(n_genres)
+        pca = decomposition.PCA(3)
         
         # these are private helper functions
         
         def do_pca(matrix, pca):
             return pca.fit_transform(preprocessing.normalize(np.transpose(matrix)))
-
-        #vertices = do_pca(to_matrix(TRACKS[0].features))
-
-        #ply_export.write_ply(vertices, 'test1')
         
+        # Calculate average .ply for each of n_genres
+
+        genre_map = load_data.load_genres()[1]
+
+        genres_examples = [[] for x in range(len(genres))]
+        max_examples = 3
+        mixed_examples = []
+
         vertices = []
         genre_vertices = [[] for x in range(n_genres)]
         for track in TRACKS:
@@ -595,21 +600,45 @@ if __name__ == '__main__':
                 vertices = pca_matrix
             else:
                 vertices = np.vstack([vertices, pca_matrix])
-        
+
+            if len(track.genres) == 1 and track.genres[0] in genres:
+                if len(genres_examples[genres.index(track.genres[0])]) < 3:
+                    genres_examples[genres.index(track.genres[0])].append(pca_matrix[0])
+    
+            if len(track.genres) == 2:
+                if track.genres[0] in genres and track.genres[1] in genres:
+                    genre_names = ""
+                    for genre in track.genres:
+                        genre_names += genre_map[load_data.index_to_genre(genres[i])].title
+                        genre_names += '_'
+                    mixed_examples.append(genre_names, pca_matrix[0])
+            """
+            elif len(mixed_examples < 4):
+                genre_names = ""
+                for genre in track.genres:
+                    genre_names += genre_map[load_data.index_to_genre(genres[i])].title
+                    genre_names += '_'
+                mixed_examples.append(genre_names, pca_matrix[0])
+            """
+
         total_average = np.mean(vertices, axis=0)
         
-        #ply_export.write_ply(total_average, 'total')
-
         genre_avg = [0 for x in range(len(genre_vertices))]
 
         for i in range(len(genre_vertices)):
             genre_avg[i] = np.mean(genre_vertices[i], axis=0)
         
         for i in range(len(genre_avg)):
-            ply_export.write_ply(genre_avg[i], 'genre{}'.format(genres[i]))
+            genre_id = load_data.index_to_genre(genres[i])
+            ply_export.write_ply(genre_avg[i], 'genre{}'.format(genre_map[genre_id].title))
 
-        #for i in range(10):
-            #ply_export.write_ply(get_random_average(100, vertices), 'test{}'.format(i))
+        for mix in mixed_examples:
+            ply_export.write_ply(mix[1], mix[0])
+
+        for i in range (len(genres_examples)):
+            name = genre_map[load_data.index_to_genre(genres[i])].title
+            for example in range(len(genres_examples[i])):
+                ply_export.write_ply(genres_examples[i][example], '{}{}'.format(name, example))
 
 
 
