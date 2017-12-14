@@ -132,7 +132,7 @@ def init_mel(n_genres=163, subset='small', reuse=True, pca_on=False):
 
     def do_pca(matrix):
         nonlocal pca
-        return pca.fit_transform(preprocessing.normalize(matrix))
+        return pca.fit_transform(preprocessing.normalize(np.transpose(matrix)))
 
     def add_features(x, features):
         nonlocal pca_on
