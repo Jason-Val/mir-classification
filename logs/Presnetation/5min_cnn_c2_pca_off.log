@@ -1,0 +1,12 @@
+Number of classes: 2
+Elapsed time: 0:00:21.165157
+Mini-batch size: 400
+Number of epochs: 1
+Learning rate: 0.01
+Subset: small
+------------------------------------
+Testing accuracy: 0.9411764740943909
+Training accuracy: 0.9629629850387573
+------------------------------------
+cost history,	validation history
+1082.635986328125,	1.0
