@@ -78,7 +78,7 @@ def build_net(n_dim, n_classes, learning_rate):
     """
     #cost_function = tf.reduce_mean(-tf.reduce_sum(Y * tf.log(y_), reduction_indices=[1]))
     
-    optimizer = tf.train.AdamOptimizer(learning_rate).minimize(cost_function)
+    optimizer = tf.train.AdamOptimizer(1e-4).minimize(cost_function)
 
     return Net(optimizer, final_output, cost_function, X, y_, model_name, keep_prob)
     #return (final_output, optimizer, cost_function, init)
