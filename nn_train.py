@@ -30,6 +30,7 @@ def train_net(net, test_id, training_epochs, batch_size, minutes):
         sess.run(init)
         d1 = datetime.datetime.now()
         epochs = 0
+        stop = False
         for epoch in range(training_epochs):
             print("Epoch: {}".format(epoch), sep=' ', end='\r', flush=True)
             if batch_size <= 0:
@@ -48,8 +49,11 @@ def train_net(net, test_id, training_epochs, batch_size, minutes):
                     cost_hist = np.append(cost_hist, cost)
                     valid = sess.run(accuracy, feed_dict={net.X:x_val, net.y_:y_val, net.keep_prob:1.0})
                     val_hist = np.append(val_hist, valid)
+                    if (datetime.datetime.now() - d1) > datetime.timedelta(0, 60*minutes, 0):
+                        stop = True                        
+                        break
             epochs += 1
-            if (datetime.datetime.now() - d1) > datetime.timedelta(0, 60*minutes, 0):
+            if (datetime.datetime.now() - d1) > datetime.timedelta(0, 60*minutes, 0) or stop == True:
                 break
             if valid >= 1:
                 print("Sufficiently Valid!!!!")
@@ -123,23 +127,23 @@ def go():
     n_classes = 3
     subset='small'
     
-    #fma_pca.init_mel(n_classes, subset=subset, reuse=True, pca_on=False)
+    #fma_pca.init_mel(n_classes, subset=subset, reuse=True, pca_on=True)
 
-    #fma_pca.init(n_classes, subset=subset, reuse=True, pca_on=True)
+    fma_pca.init_mel(n_classes, subset=subset, reuse=True, pca_on=True)
     
-    #test_id = 'Presnetation/5min_'        # for the log file name
-    #training_epochs = 100000000
-    #batch_size = 400
-    #minutes = 5
-    #n_dim = fma_pca.n_dim()
-    #sd = 1 / np.sqrt(n_dim)
-    #learning_rate=.01
+    test_id = 'Presnetation/5min_'        # for the log file name
+    training_epochs = 100000000
+    batch_size = 400
+    minutes = 5
+    n_dim = fma_pca.n_dim()
+    sd = 1 / np.sqrt(n_dim)
+    learning_rate=.01
     
 ##############################################################################
-    """
-    test_id1 = '{}nn_c2_pca_on'.format(test_id)
+    
+    test_id1 = '{}cnn_c4_pca_on_frequency_real'.format(test_id)
     # 128, 57 if pca, else 128,128
-    net = akshaynet.build_net(n_dim, n_classes, learning_rate)
+    net = cnn2.build_net([128, 57], n_classes, learning_rate, pca_on=True)
     
     test_accuracy, train_accuracy, cost_hist, val_hist, epochs, time = train_net(net, test_id1, training_epochs, batch_size, minutes)
     
@@ -148,7 +152,7 @@ def go():
     show_plot(cost_hist, val_hist)
     show_plot(cost_hist, [])
     show_plot(val_hist, [])
-    """
+
 ##############################################################################
     """
     fma_pca.init(n_classes, subset=subset, reuse=False, pca_on=False)
@@ -169,7 +173,7 @@ def go():
     """
     
 ##############################################################################
-    
+    """
     fma_pca.init_mel(n_classes, subset=subset, reuse=False, pca_on=False)
     
     test_id = 'Presnetation/5min_'        # for the log file name
@@ -182,7 +186,7 @@ def go():
 
     subset='small'
     #fma_pca.init_mel(n_classes, subset=subset, reuse=False, pca_on=False)
-
+"""
 ##############################################################################
     """
     test_id1 = '{}cnn_c2_pca_off'.format(test_id)
@@ -198,10 +202,10 @@ def go():
     show_plot(val_hist, [])
     """
 ##############################################################################
-
+"""
     #fma_pca.init(n_classes, subset=subset, reuse=False, pca_on=True)
 
-    test_id1 = '{}cnn_c3_pca_off'.format(test_id)
+    test_id1 = '{}nn_c2_pca_off'.format(test_id)
     # 128, 57 if pca, else 128,128
     net = cnn2.build_net([128,128], n_classes, learning_rate, pca_on=False)
     
@@ -212,7 +216,7 @@ def go():
     show_plot(cost_hist, val_hist)
     show_plot(cost_hist, [])
     show_plot(val_hist, [])
-
+"""
 
 if __name__ == '__main__':
     go()
