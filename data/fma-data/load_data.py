@@ -1,4 +1,4 @@
-
+import zipfile as zf
 import csv
 import numpy as np
 
@@ -72,13 +72,15 @@ def get_tracks(subset, mel=False, pca=True):
     for track_id in tracks.keys():
         track = tracks[track_id]
         if track.subset == subset:
+            #print('Retrieving track {}'.format(track_id))
             if pca:
                 track.features = features[track_id]
             if mel:
                 if track_id in mel_map:         # detect "holes" in our data, and skip these tracks
                     track.mel = mel_map[track_id]
                 else:
-                    break
+                    #print('Retrieving track {}'.format(track_id))
+                    continue
             for i in range(len(track.genres)):
                 track.genres[i] = genre_to_index(track.genres[i])
             result.append(track)
@@ -212,6 +214,38 @@ def load_features():
 # returns a mapping from track id to melspectrogram, where the melspectrogram is:
 # [128, 128, 1].
 # The third dimension is because tensorflow expects a color channel
+
+def load_mel():
+    print("Loading melspectrograms...")
+    mapping = {}                # track id
+    i = 1
+    curr_track = 0
+    freq_i = 0
+    count = 0
+    #print('{}/fma_metadata/melspectrogram.zip'.format(PATH))
+    with zf.ZipFile('{}/fma_metadata/melspectrogram.zip'.format(PATH)) as mel_zip:
+        with mel_zip.open(mel_zip.namelist()[0]) as mel_file:
+            for line in mel_file.readlines():
+                #print("\treading line {} of {}".format(i, 2213640), sep=' ', end='\r', flush=True)
+                line = line.decode('utf-8').split(',')
+                if line[1] == '':
+                    count += 1
+                    curr_track = int(line[0])
+                    print('Loading melspectrogram #{} of 24981'.format(count), sep=' ', end='\r', flush=True)
+                    mapping[curr_track] = np.array([[ [1.] for sample in range(128)] for freq in range(128)])
+                    freq_i = 0
+                else:
+                    index = 0
+                    for sample in line:
+                        mapping[curr_track][freq_i][index][0] = sample
+                        index += 1
+                    freq_i += 1
+                i += 1
+    print('')
+    return mapping
+
+
+"""
 def load_mel():
     print("Loading melspectrograms...")
     mapping = {}                # track id
@@ -221,7 +255,7 @@ def load_mel():
         curr_track = 0
         freq_i = 0
         for line in lines:
-            print("\treading line {} of {}".format(i, 1034841), sep=' ', end='\r', flush=True)
+            print("\treading line {} of {}".format(i, 2213640), sep=' ', end='\r', flush=True)
             if line[1] == '':
                 curr_track = int(line[0])
                 mapping[curr_track] = np.array([[ [1.] for sample in range(128)] for freq in range(128)])
@@ -235,4 +269,4 @@ def load_mel():
             i += 1
         print('')
     return mapping
-
+"""
