@@ -1,9 +1,7 @@
 import numpy as np
 import tensorflow as tf
-#import svd_grad
 
 
-# An arbitrary neural net
 class Net:
     def __init__(self, optimizer, output, cost_function, X, y_, model_name, keep_prob, final_pool):
         self.optimizer=optimizer
@@ -66,16 +64,12 @@ def build_net(dim, n_classes, learning_rate, pca_on=False):
     h_pool3 = max_pool(h_conv3)
 
     #########################################################
-
-    # reshapes the data into a matrix which we can use PCA on
-    # Original 16x16x64 matrix: a 3D box, where each of 64 layers is 16x16,
-    #  and corresponds to a feature in the image.
-    # I return a matrix where each column is a flattened feature!!!
-    # So this is something PCA can be run on
     
     dim_in = 0
     
+    # pca_on will be phased out in later versions
     if pca_on:
+        # Reshape 16x16x64 matrix; flatten each 16x16 matrix, then use them as columns
         h_pool3_2d = tf.reshape(h_pool3, [-1, 16*16, 64])
         h_pool3_cen = h_pool3_2d - tf.reduce_mean(h_pool3_2d, 1, keep_dims=True)
         
@@ -92,7 +86,6 @@ def build_net(dim, n_classes, learning_rate, pca_on=False):
     else:
         dim_in = 16*16*64
         
-    #h_pool3_flat = tf.reshape(h_pool3 [-1, dim_in])
     h_pool3_flat = tf.contrib.layers.flatten(h_pool3)
 
     W_fc1 = weight_variable([dim_in, 1024])
