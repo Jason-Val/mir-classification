@@ -11,3 +11,5 @@ The expected project structure for data is:
 Any alterations to that structure will require minor changes to the code.
 
 Before the cnn can be trained, the melspectrograms must be computed with extract_mel_medium.py. This may take a very long time; expect it to run for at least 5 hours.
+
+Current best accuracy is 60% on 4 genres, trained for 5 hours.
