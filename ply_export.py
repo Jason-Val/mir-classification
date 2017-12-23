@@ -1,5 +1,8 @@
 import numpy as np
 
+"""
+writes vertices as a .ply file; useful for making scatterplots
+"""
 def write_ply(vertices, name):
     with open('./visualization/pca/ply/{}.ply'.format(name), 'w') as f:
         f.write('ply\nformat ascii 1.0\n')
