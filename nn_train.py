@@ -6,13 +6,33 @@ import datetime
 import logger
 import tensorflow as tf
 import cnn2
-import svd_grad
-    
+
 def train_net(net, test_id, training_epochs, batch_size, minutes):
     
-    equal = tf.equal(tf.round(net.output), net.y_)
+    y = tf.round(net.output)
+    
+    # accuracy computes whether or not the vectors match exactly
+    equal = tf.equal(y, net.y_)
     correct_pred = tf.reduce_min(tf.round(tf.cast(equal, tf.float32)), 1)
     accuracy = tf.reduce_mean(correct_pred)
+    
+    # accuracy_lenient returns the fraction of 1s the net got correct, or 0 if it guessed even a single incorrect genre
+    
+    # calculates fraction of 1s in y_ that are matched in y
+    count = tf.reduce_sum( tf.multiply(y, net.y_), 1)
+    count_ = tf.reduce_sum(net.y_, 1)
+    ratio = tf.divide(count, count_)
+    
+    # calculates the mask for removing incorrect guesses
+    sub = tf.subtract(net.y_, y)
+    mask = tf.cast(tf.reduce_min(sub, 1) + 1, dtype=tf.float32)
+    
+    # applies the mask and gets the average score
+    stack = tf.stack([mask, ratio])    
+    score_final = tf.reduce_min(stack, 1)
+    accuracy_lenient = tf.reduce_mean(stack)
+    
+    
 
     x_train = fma_pca.x_train()
     y_train = fma_pca.y_train()
@@ -56,7 +76,7 @@ def train_net(net, test_id, training_epochs, batch_size, minutes):
             if (datetime.datetime.now() - d1) > datetime.timedelta(0, 60*minutes, 0) or stop == True:
                 break
             if valid >= 1:
-                print("Sufficiently Valid!!!!")
+                print("Sufficiently Valid!")
                 break
         d2=datetime.datetime.now()
         print("Epoch: ", epochs)
@@ -71,11 +91,22 @@ def train_net(net, test_id, training_epochs, batch_size, minutes):
         print("testing accuracy:")
         print(test_accuracy)
 
+        test_accuracy2 = sess.run(accuracy_lenient, feed_dict={net.X:x_test, net.y_:y_test, net.keep_prob:1.0})
+        print("testing accuracy lenient:")
+        print(test_accuracy2)
+        
+        # Too much data in medium subset to run through without batching 
+        """
         train_accuracy = sess.run(accuracy, feed_dict={net.X:x_train, net.y_:y_train, net.keep_prob:1.0})
         print("training accuracy:")
         print(train_accuracy)
 
-    return (test_accuracy, train_accuracy, cost_hist, val_hist, epochs, d2-d1)
+        train_accuracy2 = sess.run(accuracy_lenient, feed_dict={net.X:x_train, net.y_:y_train, net.keep_prob:1.0})
+        print("training accuracy lenient:")
+        print(train_accuracy2)
+        """
+        
+    return (test_accuracy, -1, cost_hist, val_hist, epochs, d2-d1)
 
 def show_plot(cost_hist, val_hist):
     plt.plot(cost_hist)
@@ -86,24 +117,23 @@ def show_plot(cost_hist, val_hist):
 
 def go():
     n_classes = 4
-    subset='small'
+    subset='medium'
     
     fma_pca.init_mel(n_classes, subset=subset, reuse=True, pca_on=False)
 
     #fma_pca.init_mel(n_classes, subset=subset, reuse=True)
     
-    test_id = 'Accuracy/5min_'        # for the log file name
+    test_id = 'Accuracy/5hr_'        # for the log file name
     training_epochs = 100000000
-    batch_size = 400
-    minutes = 60*2
+    batch_size = 700
+    minutes = 5*60
     n_dim = fma_pca.n_dim()
     sd = 1 / np.sqrt(n_dim)
     learning_rate=.01
     
 ##############################################################################
     
-    test_id1 = '{}cnn_c4_2hrs'.format(test_id)
-    # 128, 57 if pca, else 128,128
+    test_id1 = '{}cnn_c4_medium'.format(test_id)
     net = cnn2.build_net([128, 128], n_classes, learning_rate)
     
     test_accuracy, train_accuracy, cost_hist, val_hist, epochs, time = train_net(net, test_id1, training_epochs, batch_size, minutes)
