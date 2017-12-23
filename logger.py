@@ -1,5 +1,8 @@
 import os
 
+"""
+Writes logs for output of neural net training
+"""
 def write_log(name, n_classes, epochs, batch_size, time, learning_rate, subset, train_accuracy, test_accuracy, cost, valid):
     
     filename = './logs/{}'.format(name)
