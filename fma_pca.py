@@ -109,7 +109,7 @@ def init(n_genres=163, subset='small', pca_on=True, n_components=3, reuse=False)
     Y_VAL = y_v
     X_VAL = x_v
 
-def init_mel(n_genres=163, subset='small', reuse=True, pca_on=False):
+def init_mel(n_genres=163, subset='medium', reuse=True, pca_on=False):
     
     global TRACKS
     global X_DATA
@@ -119,7 +119,8 @@ def init_mel(n_genres=163, subset='small', reuse=True, pca_on=False):
     global X_VAL
     global Y_VAL
     
-    genres = load_data.get_n_genres(n_genres-1)
+    genres = load_data.get_n_genres(n_genres)
+    genres_count = [0 for x in range(n_genres)]
 
     pca = decomposition.PCA(n_components=57)
     
@@ -128,7 +129,7 @@ def init_mel(n_genres=163, subset='small', reuse=True, pca_on=False):
         TRACKS = load_data.get_tracks(subset, pca=False, mel=True)
         print("Tracks loaded")
     
-    genres = load_data.get_n_genres(n_genres-1)
+    #genres = load_data.get_n_genres(n_genres-1)
 
     def do_pca(matrix):
         nonlocal pca
@@ -151,12 +152,14 @@ def init_mel(n_genres=163, subset='small', reuse=True, pca_on=False):
     def add_genres(y, y_genres):
         nonlocal n_genres
         nonlocal genres
+        nonlocal genres_count
 
         labels = [0 for x in range(n_genres)]
 
         for genre in y_genres:
             if genre in genres:         # the genre is the top n genres
                 labels[genres.index(genre)] = 1.
+                genres_count[genres.index(genre)] += 1
         if len(y) == 0:
             y = labels
         else:
@@ -194,6 +197,8 @@ def init_mel(n_genres=163, subset='small', reuse=True, pca_on=False):
     print('')
     print('X shape: {}'.format(x.shape))
     print('Y shape: {}'.format(y.shape))
+
+    print('Count of each genre:\n\t{}'.format(genres_count))
 
     Y_DATA = y
     X_DATA = x
