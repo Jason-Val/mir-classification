@@ -2,7 +2,6 @@ import zipfile as zf
 import csv
 import numpy as np
 
-DEBUG = False
 PATH = '.'
 
 GENRES = None
@@ -48,6 +47,10 @@ class Feature:
         self.data.append([])
         self.stats.append(stat)
 
+"""
+Initializes the data loader with the correct path
+Also initializes genre_to_index and index_to_genre
+"""
 def init_loader(path):
     global PATH
     PATH = path
@@ -55,12 +58,37 @@ def init_loader(path):
     global index_to_genre
     genre_to_index, index_to_genre = init_genre_index()
 
-# returns a list of all tracks in the small dataset
-# each track has associated features
-# each track has its genre list altered, storing only the shifted ids of each genre
-# they are shifted so that the genre ids will be consecutive; this makes the final softmax
-# layer of the neural net smaller (versus having a spot for genres 23-25, which don't exist)
-def get_tracks(subset, mel=False, pca=True):
+"""
+The genre ids are non-consecutive
+This gives each genre a consecutive id, and translates between the two
+"""
+def init_genre_index():
+    global GENRES
+    if GENRES == None:
+        GENRES = load_genres()[1]
+
+    # [1, 2, 4, 7] ==> [0, 1, 2, 3]
+    # {1: 0, 2: 1,}    {0: 1, 1: 2,}   
+    map_to_genre = sorted(list(GENRES.keys()))       # this can just be a list
+    map_to_index = {}
+
+    for i in range (0, len(map_to_genre)):
+        map_to_genre[i] = map_to_genre[i]
+        map_to_index[map_to_genre[i]] = i
+
+    def genre_to_index(genre):
+        return map_to_index[genre]
+    def index_to_genre(index):
+        return map_to_genre[index]
+
+    return (genre_to_index, index_to_genre)
+
+"""
+Returns a list of all tracks in a given dataset
+each track has either (or both) of the melspectrogram or features.csv data
+each track has its genre list altered, storing only the consecutive ids of each genre
+"""
+def get_tracks(subset, mel=True, pca=False):
     result = []
     tracks = load_tracks()
     features = None
@@ -72,14 +100,12 @@ def get_tracks(subset, mel=False, pca=True):
     for track_id in tracks.keys():
         track = tracks[track_id]
         if track.subset == subset:
-            #print('Retrieving track {}'.format(track_id))
             if pca:
                 track.features = features[track_id]
             if mel:
-                if track_id in mel_map:         # detect "holes" in our data, and skip these tracks
+                if track_id in mel_map:         # detect "holes" in the data, and skip these tracks
                     track.mel = mel_map[track_id]
                 else:
-                    #print('Retrieving track {}'.format(track_id))
                     continue
             for i in range(len(track.genres)):
                 track.genres[i] = genre_to_index(track.genres[i])
@@ -100,27 +126,6 @@ def get_n_genres(n_genres):
         genres[i] = genre_to_index(genres[i].id)
 
     return genres[:n_genres]
-
-def init_genre_index():
-    global GENRES
-    if GENRES == None:
-        GENRES = load_genres()[1]
-
-    # [1, 2, 4, 7] ==> [0, 1, 2, 3]
-    # {1: 0, 2: 1,}    {0: 1, 1: 2,}    
-    map_to_genre = sorted(list(GENRES.keys()))       # this can just be a list
-    map_to_index = {}
-
-    for i in range (0, len(map_to_genre)):
-        map_to_genre[i] = map_to_genre[i]
-        map_to_index[map_to_genre[i]] = i
-
-    def genre_to_index(genre):
-        return map_to_index[genre]
-    def index_to_genre(index):
-        return map_to_genre[index]
-
-    return (genre_to_index, index_to_genre)
 
 
 def load_tracks():
@@ -146,6 +151,7 @@ def load_tracks():
             mapping[int(info[id_i])] = track(int(info[id_i]), genres, info[title_i], int(info[bitrate_i]), info[split_i], info[subset_i])
 
     return mapping
+
 
 def load_genres():
     print("Loading genres...")
@@ -173,6 +179,10 @@ def load_genres():
     GENRES = mapping
     return (top_genres, mapping)
 
+
+"""
+Loads the feautres from features.csv
+"""
 def load_features():
     print("Loading fma features...")
     mapping = {}                # track id -> [features (class)]
@@ -184,7 +194,6 @@ def load_features():
         num_stats = len(set(statistics)) -1
         
         lines = csv.reader(f)
-        i = 0
         curr_feature = ''
         curr_stat = ''
         for line in lines:
@@ -206,15 +215,11 @@ def load_features():
                         stat_i += 1
                         mapping[id][feature_i].add_stat(stat)
                     mapping[id][feature_i].data[stat_i].append(float(data))
-            #if i > 5000:
-                #break;
-            #i += 1
     return mapping
 
-# returns a mapping from track id to melspectrogram, where the melspectrogram is:
-# [128, 128, 1].
-# The third dimension is because tensorflow expects a color channel
-
+# returns a mapping from track id to melspectrogram, where the melspectrogram
+# has shape [128, 128, 1].
+# The third dimension is because tensorflow expects a color channel; we use greyscale
 def load_mel():
     print("Loading melspectrograms...")
     mapping = {}                # track id
@@ -222,11 +227,9 @@ def load_mel():
     curr_track = 0
     freq_i = 0
     count = 0
-    #print('{}/fma_metadata/melspectrogram.zip'.format(PATH))
-    with zf.ZipFile('{}/fma_metadata/melspectrogram.zip'.format(PATH)) as mel_zip:
+    with zf.ZipFile('{}/fma_metadata/melspectrogram_medium.zip'.format(PATH)) as mel_zip:
         with mel_zip.open(mel_zip.namelist()[0]) as mel_file:
             for line in mel_file.readlines():
-                #print("\treading line {} of {}".format(i, 2213640), sep=' ', end='\r', flush=True)
                 line = line.decode('utf-8').split(',')
                 if line[1] == '':
                     count += 1
@@ -243,30 +246,3 @@ def load_mel():
                 i += 1
     print('')
     return mapping
-
-
-"""
-def load_mel():
-    print("Loading melspectrograms...")
-    mapping = {}                # track id
-    with open('{}/fma_metadata/melspectrogram.csv'.format(PATH)) as f:
-        lines = csv.reader(f)
-        i = 1
-        curr_track = 0
-        freq_i = 0
-        for line in lines:
-            print("\treading line {} of {}".format(i, 2213640), sep=' ', end='\r', flush=True)
-            if line[1] == '':
-                curr_track = int(line[0])
-                mapping[curr_track] = np.array([[ [1.] for sample in range(128)] for freq in range(128)])
-                freq_i = 0
-            else:
-                index = 0
-                for sample in line:
-                    mapping[curr_track][freq_i][index][0] = sample
-                    index += 1
-                freq_i += 1
-            i += 1
-        print('')
-    return mapping
-"""
